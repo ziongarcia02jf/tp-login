@@ -1,0 +1,3 @@
+# carpetas generadas al compilar en Visual Studio
+Codigo/**/bin/
+Codigo/**/obj/

@@ -1,7 +1,8 @@
 # TP: Identificación y Autenticación
 
-Sistema de usuarios desarrollado en **dos versiones** del mismo trabajo práctico:
-una de **terminal en Python** y otra **web en JavaScript/HTML**.
+Sistema de usuarios desarrollado en **tres versiones** del mismo trabajo práctico:
+una de **terminal en Python**, otra **web en JavaScript/HTML** y una
+**de escritorio en C# con Windows Forms**.
 
 Permite tres operaciones:
 
@@ -70,9 +71,24 @@ también sin internet). Incluye medidor de fuerza de contraseña,
 bloqueo por intentos fallidos y una consola que muestra el
 "archivo" de usuarios en tiempo real.
 
+### Versión C# (Windows Forms)
+
+La carpeta `SistemaLogin_Demo` contiene una aplicación de escritorio
+para **Visual Studio 2012 / .NET Framework 4.5**.
+
+- Login de **usuario común** y **administrador**.
+- Autenticación con usuario, contraseña y **3 preguntas de seguridad**.
+- El administrador puede **agregar y eliminar usuarios**.
+- No incluye recuperación de contraseña.
+- Contraseñas y respuestas guardadas con **PBKDF2 + salt**.
+
+Para probarla, ejecutar `SistemaLogin_Demo/SistemaLogin.exe`.
+Para abrir el código, abrir `SistemaLogin_Demo/Codigo/SistemaLogin.sln`.
+
 ## Estructura
 
 ```
-login.py    → versión de terminal (Python)
-login.html  → versión web (HTML + CSS + JavaScript, todo en un archivo)
+login.py            → versión de terminal (Python)
+login.html          → versión web (HTML + CSS + JavaScript, todo en un archivo)
+SistemaLogin_Demo/  → versión de escritorio (C# / Windows Forms)
 ```
