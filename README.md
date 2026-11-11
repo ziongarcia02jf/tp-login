@@ -1,0 +1,78 @@
+# TP: Identificación y Autenticación
+
+Sistema de usuarios desarrollado en **dos versiones** del mismo trabajo práctico:
+una de **terminal en Python** y otra **web en JavaScript/HTML**.
+
+Permite tres operaciones:
+
+1. **Registrarse** — creación de usuarios (Admin o Común)
+2. **Iniciar sesión** — identificación + autenticación
+3. **Recuperar contraseña** — autenticación por pregunta de seguridad
+
+## Conceptos aplicados
+
+- **Identificación:** el usuario declara quién es (el nombre).
+- **Autenticación:** demuestra que es él (algo que sabe: su contraseña
+  o la respuesta a su pregunta de seguridad).
+
+## Formato del archivo de usuarios
+
+Cada usuario se guarda en una línea, con los campos separados por `;`
+(formato dado en clase):
+
+```
+nombre;contraseña;pregunta;confirmación;tipo
+  0        1         2         3       4
+```
+
+| Posición | Campo |
+|----------|-------|
+| 0 | Nombre de usuario |
+| 1 | Contraseña (guardada como **hash SHA-256**) |
+| 2 | Pregunta de seguridad |
+| 3 | Respuesta/confirmación (guardada como **hash SHA-256**) |
+| 4 | Tipo de usuario (admin / comun) |
+
+- **Python:** archivo de texto `usuarios.txt`, leído con `open()` +
+  `readlines()`, agregado con modo `'a'` y reescrito con modo `'w'`.
+- **JavaScript:** el navegador no maneja archivos de texto, por eso se
+  usa `localStorage`, el equivalente del navegador (la consola inferior
+  de la página muestra el "archivo" en vivo).
+
+## Seguridad implementada
+
+| Problema | Solución |
+|----------|----------|
+| Contraseñas en texto plano | Se guarda su **hash SHA-256** (`hashlib` en Python, `crypto.subtle` en el navegador): del hash no se puede volver al texto |
+| Ataque de fuerza bruta | Límite de intentos: a los 3 fallos, bloqueo de 15 s (web) / espera de 10 s (Python) |
+| Enumeración de usuarios | Mensajes genéricos: "Usuario o contraseña incorrectos", sin revelar si el usuario existe |
+| Contraseña visible al tipear | `getpass` en Python (no se muestra en pantalla) |
+| Recuperación que muestra la clave original | **Reset:** si la respuesta es correcta, se define una contraseña nueva (la vieja nunca se muestra, con el hash ni el sistema puede leerla) |
+| Campos que rompen el formato | Prohibido el carácter `;` (es el separador) |
+| Contraseñas demasiado débiles | Mínimo 6 caracteres + confirmación doble |
+| Problemas de codificación con ñ/acentos | Archivos abiertos con `encoding='utf-8'` |
+
+## Cómo ejecutarlo
+
+### Versión Python (terminal)
+
+```
+python login.py
+```
+
+Requiere Python 3. No usa librerías externas (solo `hashlib`,
+`getpass`, `time` y `sys` de la librería estándar).
+
+### Versión web
+
+Abrir `login.html` con doble clic (funciona en Chrome, Edge y Firefox,
+también sin internet). Incluye medidor de fuerza de contraseña,
+bloqueo por intentos fallidos y una consola que muestra el
+"archivo" de usuarios en tiempo real.
+
+## Estructura
+
+```
+login.py    → versión de terminal (Python)
+login.html  → versión web (HTML + CSS + JavaScript, todo en un archivo)
+```

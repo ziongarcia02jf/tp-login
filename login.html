@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Identificación y Autenticación — TP</title>
+<style>
+  /* =========================================================
+     TP: Identificación y Autenticación — versión web SEGURA
+     Formato de cada línea guardada (igual que en el pizarrón):
+       "nombre;hash_contraseña;pregunta;hash_respuesta;tipo"
+        0       1                2        3               4
+     El navegador no maneja archivos de texto como Python, por eso
+     usamos localStorage: el equivalente de open() + readlines().
+
+     Medidas de seguridad:
+     1) La contraseña y la respuesta se guardan como HASH SHA-256
+        (nunca en texto plano): del hash no se puede volver atrás.
+     2) Límite de intentos: a los 3 fallos el login se bloquea 15 s
+        (dificulta el ataque de fuerza bruta).
+     3) Mensajes genéricos: no se revela si el usuario existe o no.
+     4) Recuperar = crear una contraseña NUEVA (nunca se muestra
+        la vieja, porque con el hash ni el sistema puede leerla).
+     5) Mínimo 6 caracteres y prohibido el «;» (separador del
+        formato). El HTML nunca se inyecta: se usa textContent.
+     ========================================================= */
+
+  :root {
+    --fondo: #0b1220;
+    --panel: rgba(17, 24, 39, .82);
+    --borde: rgba(148, 163, 184, .18);
+    --texto: #e2e8f0;
+    --texto-suave: #94a3b8;
+    --acento: #4ade80;
+    --acento-2: #38bdf8;
+    --peligro: #f87171;
+    --radio: 16px;
+  }
+
+  * { box-sizing: border-box; margin: 0; }
+
+  body {
+    min-height: 100vh;
+    background: var(--fondo);
+    color: var(--texto);
+    font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 14px;
+    overflow-x: hidden;
+  }
+
+  /* luces de fondo decorativas */
+  .fondo { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  .fondo::before, .fondo::after {
+    content: "";
+    position: absolute;
+    width: 420px; height: 420px;
+    border-radius: 50%;
+    filter: blur(110px);
+    opacity: .16;
+  }
+  .fondo::before { background: var(--acento); top: -140px; left: -120px; }
+  .fondo::after  { background: var(--acento-2); bottom: -160px; right: -120px; }
+
+  .app { position: relative; z-index: 1; width: 100%; max-width: 460px; }
+
+  /* ---------- tarjeta principal ---------- */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio);
+    padding: 26px 24px 22px;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 24px 60px rgba(2, 6, 23, .55);
+  }
+
+  .card.shake { animation: shake .35s; }
+  @keyframes shake {
+    20% { transform: translateX(-7px); } 40% { transform: translateX(7px); }
+    60% { transform: translateX(-5px); } 80% { transform: translateX(5px); }
+  }
+
+  .marca { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .logo {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, var(--acento), var(--acento-2));
+    color: #06220f; flex: none;
+  }
+  .marca h1 { font-size: 17px; letter-spacing: .2px; }
+  .marca p { font-size: 12px; color: var(--texto-suave); margin-top: 2px; }
+
+  /* ---------- pestañas ---------- */
+  .tabs {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+    background: rgba(2, 6, 23, .5);
+    border: 1px solid var(--borde);
+    border-radius: 12px; padding: 5px; margin: 18px 0 4px;
+  }
+  .tab-btn {
+    border: 0; background: transparent; color: var(--texto-suave);
+    font: inherit; font-size: 12.5px; font-weight: 600;
+    padding: 9px 4px; border-radius: 9px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: all .18s;
+  }
+  .tab-btn:hover { color: var(--texto); }
+  .tab-btn.activa {
+    background: linear-gradient(135deg, rgba(74, 222, 128, .18), rgba(56, 189, 248, .14));
+    color: var(--acento);
+    box-shadow: inset 0 0 0 1px rgba(74, 222, 128, .25);
+  }
+
+  .panel-tab { display: none; padding-top: 16px; }
+  .panel-tab.activa { display: block; animation: aparecer .22s ease; }
+  @keyframes aparecer { from { opacity: 0; transform: translateY(6px); } }
+
+  /* ---------- campos ---------- */
+  .campo { margin-bottom: 13px; }
+  .campo label {
+    display: block; font-size: 12px; font-weight: 600;
+    color: var(--texto-suave); margin-bottom: 5px; letter-spacing: .3px;
+  }
+  .campo .marco { position: relative; }
+  .campo input, .campo select {
+    width: 100%; padding: 10px 38px 10px 12px;
+    background: rgba(2, 6, 23, .55);
+    border: 1px solid var(--borde);
+    border-radius: 10px; color: var(--texto); font: inherit; font-size: 14px;
+    outline: none; transition: border .18s, box-shadow .18s;
+  }
+  .campo select { padding-right: 12px; appearance: none; }
+  .campo input:focus, .campo select:focus {
+    border-color: var(--acento);
+    box-shadow: 0 0 0 3px rgba(74, 222, 128, .14);
+  }
+  .ojo {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    background: none; border: 0; color: var(--texto-suave);
+    cursor: pointer; padding: 4px; border-radius: 6px; line-height: 0;
+  }
+  .ojo:hover { color: var(--acento); }
+
+  /* medidor de contraseña */
+  .medidor { height: 4px; border-radius: 4px; background: rgba(148, 163, 184, .2); margin-top: 6px; overflow: hidden; }
+  .medidor i { display: block; height: 100%; width: 0; border-radius: 4px; transition: all .25s; }
+  .nivel-texto { font-size: 11px; color: var(--texto-suave); margin-top: 4px; }
+
+  .btn {
+    width: 100%; border: 0; cursor: pointer; font: inherit; font-size: 14px;
+    font-weight: 700; color: #06220f;
+    padding: 11px; border-radius: 10px; margin-top: 6px;
+    background: linear-gradient(135deg, var(--acento), #22d3aa);
+    transition: transform .15s, box-shadow .15s, filter .15s;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(74, 222, 128, .25); }
+  .btn:active { transform: translateY(0); }
+  .btn.secundario { background: rgba(148, 163, 184, .12); color: var(--texto); }
+
+  /* ---------- aviso (toast) ---------- */
+  .aviso {
+    margin-top: 14px; padding: 11px 13px; border-radius: 10px;
+    font-size: 13px; border: 1px solid var(--borde);
+    background: rgba(2, 6, 23, .55); color: var(--texto-suave);
+    display: none;
+  }
+  .aviso.visible { display: block; animation: aparecer .2s; }
+  .aviso.ok    { border-color: rgba(74, 222, 128, .4);  color: var(--acento); }
+  .aviso.error { border-color: rgba(248, 113, 113, .4); color: var(--peligro); }
+
+  /* ---------- panel de sesión activa ---------- */
+  .sesion-cab { text-align: center; padding: 10px 0 4px; }
+  .avatar {
+    width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 12px;
+    background: linear-gradient(135deg, var(--acento), var(--acento-2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 800; color: #06220f;
+  }
+  .datos-sesion {
+    background: rgba(2, 6, 23, .5); border: 1px solid var(--borde);
+    border-radius: 10px; padding: 12px 14px; margin: 14px 0;
+    font-size: 13px; line-height: 1.9;
+  }
+  .datos-sesion b { color: var(--acento); }
+
+  /* ---------- consola de datos ---------- */
+  .consola {
+    margin-top: 16px; border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--borde);
+    background: #050a14;
+  }
+  .consola-cab {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; background: rgba(148, 163, 184, .07);
+    font-size: 11.5px; color: var(--texto-suave);
+  }
+  .punto { width: 9px; height: 9px; border-radius: 50%; }
+  .p1 { background: #f87171; } .p2 { background: #fbbf24; } .p3 { background: #4ade80; }
+  .consola-cab .ruta { margin-left: 4px; font-family: Consolas, monospace; }
+  .consola-cab button {
+    margin-left: auto; background: none; border: 0; color: var(--texto-suave);
+    font-size: 11px; cursor: pointer; text-decoration: underline;
+  }
+  .consola-cab button:hover { color: var(--peligro); }
+  .leyenda {
+    padding: 6px 12px; font-size: 10.5px; color: #64748b;
+    border-bottom: 1px solid rgba(148, 163, 184, .1);
+    font-family: Consolas, monospace;
+  }
+  .consola-lineas { padding: 10px 12px 12px; min-height: 46px; }
+  .linea { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+  .linea.vacia { color: #475569; font-family: Consolas, monospace; font-size: 12px; }
+  .chip {
+    font-family: Consolas, monospace; font-size: 11.5px;
+    padding: 3px 8px; border-radius: 6px;
+    background: rgba(148, 163, 184, .1); color: var(--texto-suave);
+  }
+  .c0 { background: rgba(74, 222, 128, .16);  color: #86efac; }
+  .c1 { background: rgba(251, 191, 36, .14);  color: #fcd34d; }
+  .c2 { background: rgba(56, 189, 248, .14);  color: #7dd3fc; }
+  .c3 { background: rgba(167, 139, 250, .16); color: #c4b5fd; }
+  .c4 { background: rgba(244, 114, 182, .14); color: #f9a8d4; }
+
+  .pie { text-align: center; font-size: 11px; color: #475569; margin-top: 14px; }
+</style>
+</head>
+<body>
+
+<div class="fondo"></div>
+
+<main class="app">
+
+  <!-- ============ TARJETA PRINCIPAL (autenticación) ============ -->
+  <section class="card" id="panelAuth">
+
+    <div class="marca">
+      <div class="logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      </div>
+      <div>
+        <h1>Identificación y Autenticación</h1>
+        <p>Sistema de usuarios · TP escolar · versión segura</p>
+      </div>
+    </div>
+
+    <nav class="tabs">
+      <button class="tab-btn activa" data-tab="registro" type="button">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-8 0v2"/><circle cx="12" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+        Crear
+      </button>
+      <button class="tab-btn" data-tab="login" type="button">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5M15 12H3"/></svg>
+        Ingresar
+      </button>
+      <button class="tab-btn" data-tab="recuperar" type="button">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.6 7.6a5 5 0 1 1-7.1 7.1 5 5 0 0 1 7.1-7.1zm0 0L15.9 6m-3.4 3.4L19 2.9"/></svg>
+        Recuperar
+      </button>
+    </nav>
+
+    <!-- ---------- PESTAÑA: CREAR USUARIO ---------- -->
+    <form class="panel-tab activa" id="tabRegistro" autocomplete="off">
+      <div class="campo">
+        <label for="rNombre">USUARIO (identificación)</label>
+        <input id="rNombre" maxlength="30" placeholder="Ej: Pepito">
+      </div>
+      <div class="campo">
+        <label for="rPass">CONTRASEÑA</label>
+        <div class="marco">
+          <input id="rPass" type="password" maxlength="40" placeholder="Mínimo 6 caracteres">
+          <button class="ojo" type="button" data-ojo="rPass" title="Mostrar/ocultar">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <div class="medidor"><i id="medidorBarra"></i></div>
+        <div class="nivel-texto" id="medidorTexto">Fuerza de la contraseña</div>
+      </div>
+      <div class="campo">
+        <label for="rPass2">REPETIR CONTRASEÑA</label>
+        <input id="rPass2" type="password" maxlength="40" placeholder="Otra vez, para confirmar">
+      </div>
+      <div class="campo">
+        <label for="rPregunta">PREGUNTA DE SEGURIDAD</label>
+        <input id="rPregunta" maxlength="60" placeholder="Ej: Cual es tu color favorito">
+      </div>
+      <div class="campo">
+        <label for="rConfirm">RESPUESTA (confirmación)</label>
+        <input id="rConfirm" maxlength="40" placeholder="Ej: verde">
+      </div>
+      <div class="campo">
+        <label for="rTipo">TIPO DE USUARIO</label>
+        <select id="rTipo">
+          <option value="comun" selected>Común</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <button class="btn" type="submit">Crear usuario</button>
+    </form>
+
+    <!-- ---------- PESTAÑA: INICIAR SESIÓN ---------- -->
+    <form class="panel-tab" id="tabLogin" autocomplete="off">
+      <div class="campo">
+        <label for="lNombre">USUARIO</label>
+        <input id="lNombre" maxlength="30" placeholder="Tu usuario">
+      </div>
+      <div class="campo">
+        <label for="lPass">CONTRASEÑA</label>
+        <div class="marco">
+          <input id="lPass" type="password" maxlength="40" placeholder="Tu contraseña">
+          <button class="ojo" type="button" data-ojo="lPass" title="Mostrar/ocultar">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+      <button class="btn" type="submit">Iniciar sesión</button>
+    </form>
+
+    <!-- ---------- PESTAÑA: RECUPERAR (flujo en 3 pasos) ---------- -->
+    <form class="panel-tab" id="tabRecuperar" autocomplete="off">
+      <div class="campo">
+        <label for="cNombre">USUARIO</label>
+        <input id="cNombre" maxlength="30" placeholder="Tu usuario">
+      </div>
+
+      <div id="zonaPregunta" style="display:none">
+        <div class="campo">
+          <label id="textoPregunta">PREGUNTA DE SEGURIDAD</label>
+        </div>
+        <div class="campo">
+          <label for="cRespuesta">TU RESPUESTA</label>
+          <input id="cRespuesta" maxlength="40" placeholder="Escribí la respuesta">
+        </div>
+      </div>
+
+      <div id="zonaNueva" style="display:none">
+        <div class="campo">
+          <label for="nPass1">NUEVA CONTRASEÑA</label>
+          <div class="marco">
+            <input id="nPass1" type="password" maxlength="40" placeholder="Mínimo 6 caracteres">
+            <button class="ojo" type="button" data-ojo="nPass1" title="Mostrar/ocultar">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="campo">
+          <label for="nPass2">REPETIR NUEVA CONTRASEÑA</label>
+          <input id="nPass2" type="password" maxlength="40" placeholder="Otra vez, para confirmar">
+        </div>
+      </div>
+
+      <button class="btn" type="submit" id="btnRecuperar">Buscar pregunta</button>
+    </form>
+
+    <div class="aviso" id="aviso"></div>
+  </section>
+
+  <!-- ============ TARJETA DE SESIÓN ACTIVA ============ -->
+  <section class="card" id="panelSesion" hidden>
+    <div class="sesion-cab">
+      <div class="avatar" id="avatarLetra">?</div>
+      <h1 id="nombreSesion" style="font-size:19px">Usuario</h1>
+      <p style="font-size:12px;color:var(--texto-suave)">Sesión iniciada correctamente</p>
+    </div>
+    <div class="datos-sesion" id="datosSesion"></div>
+    <button class="btn secundario" type="button" id="btnSalir">Cerrar sesión</button>
+  </section>
+
+  <!-- ============ CONSOLA: el "archivo" en vivo ============ -->
+  <section class="consola">
+    <div class="consola-cab">
+      <span class="punto p1"></span><span class="punto p2"></span><span class="punto p3"></span>
+      <span class="ruta">archivo: usuarios.txt (guardado en localStorage)</span>
+      <button type="button" id="btnLimpiar">limpiar</button>
+    </div>
+    <div class="leyenda">posiciones: 0 nombre · 1 hash SHA-256 de la contraseña · 2 pregunta · 3 hash de la respuesta · 4 tipo</div>
+    <div class="consola-lineas" id="consolaLineas"></div>
+  </section>
+
+  <p class="pie">Cada línea: nombre;hash de la clave;pregunta;hash de la respuesta;tipo — separada por «;»</p>
+</main>
+
+<script>
+// =============================================================
+// LÓGICA — equivalencia con Python del pizarrón:
+//   open(archivo, 'r')  + readlines()  →  cargarUsuarios()
+//   open(archivo, 'a')  + write()      →  guardarLinea()
+//   open(archivo, 'w')  (reescribe)    →  actualizarContrasenia()
+//   linea.split(';')                   →  linea.split(';')
+//
+// SEGURIDAD: lo que se guarda en posición 1 y 3 es el HASH
+// SHA-256 de la contraseña/respuesta, no el texto que tipeó
+// el usuario. Ni leyendo el archivo se puede saber la clave.
+// =============================================================
+
+const CLAVE = 'usuarios';          // "nombre del archivo"
+const $ = id => document.getElementById(id);
+
+/* ---------- hash SHA-256 (unidireccional) ---------- */
+async function hashear(txt) {
+  /* usa la API de criptografía del navegador; si no está
+     disponible, un hash simple de respaldo (solo para pruebas) */
+  try {
+    if (window.crypto && crypto.subtle) {
+      const bytes = new TextEncoder().encode(txt);
+      const digest = await crypto.subtle.digest('SHA-256', bytes);
+      return [...new Uint8Array(digest)]
+        .map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+  } catch (e) { /* cae al respaldo */ }
+  let h = 5381;
+  for (let i = 0; i < txt.length; i++) {
+    h = ((h << 5) + h + txt.charCodeAt(i)) >>> 0;
+  }
+  return 'respaldo-' + h.toString(16) + '-' + txt.length;
+}
+
+/* ---------- "lectura del archivo" ---------- */
+function cargarUsuarios() {
+  const texto = localStorage.getItem(CLAVE) || '';
+  const lista = [];
+  for (const linea of texto.split('\n')) {
+    if (linea.trim() !== '') {
+      lista.push(linea.split(';'));   // corta la línea por el ;
+    }
+  }
+  return lista;
+}
+
+/* ---------- "escritura/agregar en el archivo" ---------- */
+function guardarLinea(linea) {
+  const texto = localStorage.getItem(CLAVE) || '';
+  localStorage.setItem(CLAVE, texto + linea + '\n');
+}
+
+/* ---------- reescribir el archivo (como open con 'w') ---------- */
+function actualizarContrasenia(nombre, nuevoHash) {
+  const usuarios = cargarUsuarios();
+  const lineas = usuarios.map(datos =>
+    datos[0].toLowerCase() === nombre.toLowerCase()
+      ? datos[0] + ';' + nuevoHash + ';' + datos[2] + ';' + datos[3] + ';' + datos[4]
+      : datos.join(';')
+  );
+  localStorage.setItem(CLAVE, lineas.join('\n') + '\n');
+  refrescarConsola();
+}
+
+/* ---------- avisos (toast) ---------- */
+let avisoTimer = null;
+function avisar(msg, tipo) {
+  const av = $('aviso');
+  av.textContent = msg;
+  av.className = 'aviso visible' + (tipo ? ' ' + tipo : '');
+  clearTimeout(avisoTimer);
+  avisoTimer = setTimeout(() => av.className = 'aviso', 3200);
+}
+
+/* ---------- pestañas ---------- */
+function activarTab(nombre) {
+  document.querySelectorAll('.tab-btn').forEach(b =>
+    b.classList.toggle('activa', b.dataset.tab === nombre));
+  document.querySelectorAll('.panel-tab').forEach(p =>
+    p.classList.remove('activa'));
+  $('tab' + nombre[0].toUpperCase() + nombre.slice(1)).classList.add('activa');
+  $('panelAuth').hidden = false;
+  $('panelSesion').hidden = true;
+  if (nombre === 'recuperar') reiniciarRecuperacion();
+}
+document.querySelectorAll('.tab-btn').forEach(b =>
+  b.addEventListener('click', () => activarTab(b.dataset.tab)));
+
+/* ---------- consola de datos en vivo ---------- */
+function refrescarConsola() {
+  const datos = cargarUsuarios();
+  const cont = $('consolaLineas');
+  cont.innerHTML = '';
+  if (datos.length === 0) {
+    cont.innerHTML = '<div class="linea vacia">(sin usuarios registrados todavía)</div>';
+    return;
+  }
+  for (const campos of datos) {
+    const div = document.createElement('div');
+    div.className = 'linea';
+    campos.forEach((campo, i) => {
+      const chip = document.createElement('span');
+      chip.className = 'chip c' + i;
+      chip.title = 'posición ' + i + ' — valor completo: ' + campo;
+      /* los hashes son largos: se muestran recortados */
+      chip.textContent = campo.length > 14 ? campo.slice(0, 12) + '…' : campo;
+      div.appendChild(chip);
+    });
+    cont.appendChild(div);
+  }
+}
+
+/* ---------- ojo mostrar/ocultar contraseña ---------- */
+document.querySelectorAll('.ojo').forEach(btn =>
+  btn.addEventListener('click', () => {
+    const inp = $(btn.dataset.ojo);
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+  }));
+
+/* ---------- medidor de fuerza de contraseña ---------- */
+$('rPass').addEventListener('input', e => {
+  const v = e.target.value;
+  let puntos = 0;
+  if (v.length >= 6) puntos++;
+  if (v.length >= 10) puntos++;
+  if (/\d/.test(v)) puntos++;            // tiene números
+  if (/[A-Za-z]/.test(v)) puntos++;      // tiene letras
+  const niveles = [
+    { ancho: '12%', color: '#f87171', txt: 'Muy débil' },
+    { ancho: '38%', color: '#f87171', txt: 'Débil' },
+    { ancho: '62%', color: '#fbbf24', txt: 'Media' },
+    { ancho: '85%', color: '#4ade80', txt: 'Fuerte' },
+    { ancho: '100%', color: '#22c55e', txt: 'Muy fuerte' }
+  ];
+  const n = niveles[Math.min(puntos, 4)];
+  const barra = $('medidorBarra');
+  barra.style.width = v ? n.ancho : '0';
+  barra.style.background = n.color;
+  $('medidorTexto').textContent = v ? 'Fuerza: ' + n.txt : 'Fuerza de la contraseña';
+});
+
+/* ---------- 1) CREAR USUARIO (creación: Admin / Común) ---------- */
+$('tabRegistro').addEventListener('submit', async e => {
+  e.preventDefault();
+  const nombre = $('rNombre').value.trim();
+  const pass = $('rPass').value;
+  const pass2 = $('rPass2').value;
+  const pregunta = $('rPregunta').value.trim();
+  const confirmacion = $('rConfirm').value.trim();
+  const tipo = $('rTipo').value;
+
+  if (!nombre || !pass || !pregunta || !confirmacion) {
+    fallar('Faltan datos: completá todos los campos.');
+    return;
+  }
+  if (pass.length < 6) {
+    fallar('La contraseña debe tener al menos 6 caracteres.');
+    return;
+  }
+  if (pass !== pass2) {
+    fallar('Las contraseñas no coinciden.');
+    return;
+  }
+
+  /* el ';' separa campos: si el usuario lo usa, rompe el formato */
+  const conPuntoYComa = [nombre, pass, pregunta, confirmacion].some(x => x.includes(';'));
+  if (conPuntoYComa) {
+    fallar('No se permite usar el carácter «;» (separa los campos).');
+    return;
+  }
+
+  /* no permitir usuarios repetidos (comparación sin mayúsculas) */
+  for (const datos of cargarUsuarios()) {
+    if (datos[0].toLowerCase() === nombre.toLowerCase()) {
+      fallar('Ese usuario ya existe. Elegí otro nombre.');
+      return;
+    }
+  }
+
+  /* SEGURO: se guardan los HASH, nunca el texto plano */
+  const hashPass = await hashear(pass);
+  const hashResp = await hashear(confirmacion);
+  guardarLinea(nombre + ';' + hashPass + ';' + pregunta + ';' + hashResp + ';' + tipo);
+  refrescarConsola();
+  $('tabRegistro').reset();
+  $('medidorBarra').style.width = '0';
+  $('medidorTexto').textContent = 'Fuerza de la contraseña';
+  avisar('¡Usuario "' + nombre + '" creado con éxito!', 'ok');
+});
+
+/* ---------- 2) INICIAR SESIÓN (identificación + autenticación) ---------- */
+let sesion = null;
+
+/* anti fuerza bruta: a los 3 fallos seguidos, bloqueo de 15 s */
+let fallosLogin = 0;
+let bloqueadoHasta = 0;
+const MAX_INTENTOS = 3;
+const TIEMPO_BLOQUEO = 15000;   // milisegundos
+
+$('tabLogin').addEventListener('submit', async e => {
+  e.preventDefault();
+
+  /* si sigue bloqueado, no analizar nada (esto frena la fuerza bruta) */
+  if (Date.now() < bloqueadoHasta) {
+    const seg = Math.ceil((bloqueadoHasta - Date.now()) / 1000);
+    fallar('Demasiados intentos. Esperá ' + seg + ' segundos.');
+    return;
+  }
+
+  const nombre = $('lNombre').value.trim();
+  const pass = $('lPass').value;
+
+  if (!nombre || !pass) { fallar('Completá usuario y contraseña.'); return; }
+
+  /* se calcula el hash de lo tipeado y se compara con el guardado */
+  const hashIngresado = await hashear(pass);
+  for (const datos of cargarUsuarios()) {
+    if (datos[0].toLowerCase() === nombre.toLowerCase() && datos[1] === hashIngresado) {
+      fallosLogin = 0;
+      bloqueadoHasta = 0;
+      sesion = datos;
+      mostrarSesion();
+      $('tabLogin').reset();
+      return;
+    }
+  }
+
+  /* mensaje GENÉRICO: no aclara si el usuario existe o no */
+  fallosLogin++;
+  if (fallosLogin >= MAX_INTENTOS) {
+    bloqueadoHasta = Date.now() + TIEMPO_BLOQUEO;
+    fallosLogin = 0;
+    fallar('Demasiados intentos fallidos. Esperá 15 segundos.');
+  } else {
+    fallar('Usuario o contraseña incorrectos.');
+  }
+});
+
+function mostrarSesion() {
+  $('panelAuth').hidden = true;
+  $('panelSesion').hidden = false;
+  $('avatarLetra').textContent = sesion[0][0].toUpperCase();
+  $('nombreSesion').textContent = sesion[0];
+  $('datosSesion').innerHTML =
+    'Usuario: <b>' + escapar(sesion[0]) + '</b><br>' +
+    'Tipo de cuenta: <b>' + escapar(sesion[4]) + '</b><br>' +
+    'Pregunta de seguridad: <b>' + escapar(sesion[2]) + '</b><br>' +
+    'Contraseña: <b>no se muestra 🔒</b> (está guardada como hash)';
+  avisar('Bienvenido, ' + sesion[0] + ' 👋', 'ok');
+}
+
+$('btnSalir').addEventListener('click', () => {
+  sesion = null;
+  activarTab('login');
+  avisar('Sesión cerrada.');
+});
+
+/* ---------- 3) RECUPERAR CONTRASEÑA (3 pasos: reset, no mostrar) ---------- */
+let pasoRec = 0;      // 0: buscar usuario · 1: responder · 2: nueva contraseña
+let pendiente = null; // datos del usuario encontrado
+
+$('tabRecuperar').addEventListener('submit', async e => {
+  e.preventDefault();
+
+  /* PASO 1: identificar al usuario y mostrar su pregunta */
+  if (pasoRec === 0) {
+    const nombre = $('cNombre').value.trim();
+    if (!nombre) { fallar('Escribí tu usuario.'); return; }
+
+    for (const datos of cargarUsuarios()) {
+      if (datos[0].toLowerCase() === nombre.toLowerCase()) {
+        pendiente = datos;
+        pasoRec = 1;
+        $('textoPregunta').textContent = 'PREGUNTA: ' + datos[2];
+        $('zonaPregunta').style.display = 'block';
+        $('btnRecuperar').textContent = 'Confirmar respuesta';
+        $('cRespuesta').focus();
+        avisar('Respondé la pregunta de seguridad.', 'ok');
+        return;
+      }
+    }
+    /* mensaje genérico: no revela si el usuario existe */
+    fallar('No se pudo recuperar la contraseña con esos datos.');
+    return;
+  }
+
+  /* PASO 2: autenticar por "algo que sé" (hash contra hash) */
+  if (pasoRec === 1) {
+    const respuesta = $('cRespuesta').value;
+    if (!respuesta) { fallar('Escribí la respuesta.'); return; }
+
+    if (await hashear(respuesta) !== pendiente[3]) {
+      fallar('Respuesta incorrecta.');
+      return;
+    }
+    pasoRec = 2;
+    $('zonaPregunta').style.display = 'none';
+    $('zonaNueva').style.display = 'block';
+    $('btnRecuperar').textContent = 'Guardar nueva contraseña';
+    $('nPass1').focus();
+    avisar('✓ Respuesta correcta. Ahora definí una contraseña nueva.', 'ok');
+    return;
+  }
+
+  /* PASO 3: guardar la contraseña NUEVA (la vieja nunca se muestra:
+     con el hash guardado ni el propio sistema puede leerla) */
+  const nueva = $('nPass1').value;
+  const repetida = $('nPass2').value;
+  if (nueva.length < 6) {
+    fallar('La nueva contraseña debe tener al menos 6 caracteres.');
+    return;
+  }
+  if (nueva !== repetida) { fallar('Las contraseñas no coinciden.'); return; }
+  if (nueva.includes(';')) {
+    fallar('No se permite usar el carácter «;».');
+    return;
+  }
+  await actualizarContrasenia(pendiente[0], await hashear(nueva));
+  reiniciarRecuperacion();
+  avisar('¡Contraseña actualizada! Ya podés iniciar sesión.', 'ok');
+});
+
+function reiniciarRecuperacion() {
+  pasoRec = 0;
+  pendiente = null;
+  $('zonaPregunta').style.display = 'none';
+  $('zonaNueva').style.display = 'none';
+  $('btnRecuperar').textContent = 'Buscar pregunta';
+  $('tabRecuperar').reset();
+}
+
+/* ---------- utilidades ---------- */
+function fallar(msg) {
+  avisar(msg, 'error');
+  const card = $('panelAuth');
+  card.classList.remove('shake');
+  void card.offsetWidth;      // reinicia la animación
+  card.classList.add('shake');
+}
+
+function escapar(txt) {
+  const d = document.createElement('div');
+  d.textContent = txt;
+  return d.innerHTML;
+}
+
+$('btnLimpiar').addEventListener('click', () => {
+  if (confirm('¿Borrar TODOS los usuarios guardados? (para probar de cero)')) {
+    localStorage.removeItem(CLAVE);
+    refrescarConsola();
+    avisar('Datos borrados. El archivo está vacío.', 'ok');
+  }
+});
+
+/* ---------- arranque ---------- */
+refrescarConsola();
+</script>
+</body>
+</html>

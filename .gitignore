@@ -1,0 +1,6 @@
+# datos generados por el programa (nunca subir usuarios reales)
+usuarios.txt
+
+# python
+__pycache__/
+*.pyc
