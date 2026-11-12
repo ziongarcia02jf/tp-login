@@ -106,19 +106,15 @@
 //  LOGIN SIMPLE - Demo escolar
 //  Los usuarios se guardan en el navegador (localStorage).
 //  Cuentas de ejemplo:
-//    admin   / admin123   -> respuestas: firulais / buenos aires / san martin
-//    usuario / usuario123 -> respuestas: luna / cordoba / belgrano
+//    admin   / admin123   -> firulais / buenos aires / san martin
+//    usuario / usuario123 -> luna / cordoba / belgrano
 // ============================================================
 
-var memoria = null; // respaldo por si el navegador bloquea localStorage
+// 1. Leer los usuarios guardados en el navegador.
+var usuarios = JSON.parse(localStorage.getItem("usuariosLogin"));
 
-function leer() {
-  try { return localStorage.getItem("usuariosLogin"); } catch (e) { return memoria; }
-}
-
-var usuarios = JSON.parse(leer() || "null");
-
-if (!usuarios) {
+// 2. Si no hay ninguno, crear las dos cuentas de ejemplo.
+if (usuarios === null) {
   usuarios = [
     {
       nombre: "Administrador",
@@ -142,42 +138,79 @@ var pendiente = null; // usuario que ya escribió bien la contraseña
 
 dibujarAyuda();
 
+// ============================================================
+//  FUNCIONES DE APOYO
+// ============================================================
+
+// Guarda la lista en el navegador y actualiza el panel de la derecha.
 function guardar() {
-  var texto = JSON.stringify(usuarios);
-  try { localStorage.setItem("usuariosLogin", texto); } catch (e) { memoria = texto; }
+  localStorage.setItem("usuariosLogin", JSON.stringify(usuarios));
   dibujarAyuda();
 }
 
-function dibujarAyuda() {
-  var caja = document.getElementById("tablaUsuarios");
-  if (!caja) return;
-  caja.innerHTML = "";
-
-  usuarios.forEach(function (u) {
-    var p = document.createElement("p");
-
-    var titulo = document.createElement("b");
-    titulo.textContent = u.usuario + " (" + (u.rol === "admin" ? "Administrador" : "Común") + ")";
-    p.appendChild(titulo);
-    p.appendChild(document.createElement("br"));
-    p.appendChild(document.createTextNode("Clave: " + u.clave));
-    p.appendChild(document.createElement("br"));
-    p.appendChild(document.createTextNode("Respuestas: " + u.respuestas.join(" / ")));
-
-    caja.appendChild(p);
-  });
+// Devuelve el nombre lindo del rol.
+function nombreRol(rol) {
+  if (rol === "admin") {
+    return "Administrador";
+  }
+  return "Común";
 }
 
+// Pasa el texto a minúsculas, sin acentos y sin espacios en los bordes.
 function normalizar(texto) {
-  return texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  var cambios = {
+    "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u",
+    "ü": "u", "ñ": "n"
+  };
+
+  texto = texto.toLowerCase().trim();
+  var salida = "";
+
+  for (var i = 0; i < texto.length; i++) {
+    var letra = texto[i];
+
+    if (cambios[letra]) {
+      salida = salida + cambios[letra];
+    } else {
+      salida = salida + letra;
+    }
+  }
+
+  return salida;
 }
 
-function entrar() {
-  var usuario = document.getElementById("usuario").value.trim();
-  var clave = document.getElementById("clave").value;
-  var encontrado = usuarios.find(function (u) { return u.usuario === usuario; });
+// Muestra todos los usuarios en el panel de la derecha.
+function dibujarAyuda() {
+  var texto = "";
 
-  if (!encontrado || encontrado.clave !== clave) {
+  for (var i = 0; i < usuarios.length; i++) {
+    var u = usuarios[i];
+
+    texto = texto + "<p><b>" + u.usuario + " (" + nombreRol(u.rol) + ")</b><br>";
+    texto = texto + "Clave: " + u.clave + "<br>";
+    texto = texto + "Respuestas: " + u.respuestas.join(" / ") + "</p>";
+  }
+
+  document.getElementById("tablaUsuarios").innerHTML = texto;
+}
+
+// ============================================================
+//  LOGIN
+// ============================================================
+
+// Paso 1: revisa usuario y contraseña.
+function entrar() {
+  var nombre = document.getElementById("usuario").value.trim();
+  var clave = document.getElementById("clave").value;
+  var encontrado = null;
+
+  for (var i = 0; i < usuarios.length; i++) {
+    if (usuarios[i].usuario === nombre) {
+      encontrado = usuarios[i];
+    }
+  }
+
+  if (encontrado === null || encontrado.clave !== clave) {
     document.getElementById("mensaje").textContent = "Usuario o contraseña incorrectos.";
     return;
   }
@@ -189,12 +222,15 @@ function entrar() {
   document.getElementById("pantallaPreguntas").hidden = false;
 }
 
+// Paso 2: revisa las 3 respuestas.
 function verificar() {
-  var correctas = pendiente.respuestas.map(normalizar);
+  var r1 = normalizar(document.getElementById("r1").value);
+  var r2 = normalizar(document.getElementById("r2").value);
+  var r3 = normalizar(document.getElementById("r3").value);
 
-  if (normalizar(document.getElementById("r1").value) !== correctas[0] ||
-      normalizar(document.getElementById("r2").value) !== correctas[1] ||
-      normalizar(document.getElementById("r3").value) !== correctas[2]) {
+  if (r1 !== normalizar(pendiente.respuestas[0]) ||
+      r2 !== normalizar(pendiente.respuestas[1]) ||
+      r3 !== normalizar(pendiente.respuestas[2])) {
     document.getElementById("mensaje2").textContent = "Alguna respuesta es incorrecta.";
     return;
   }
@@ -208,35 +244,40 @@ function verificar() {
 
   document.getElementById("tituloPanel").textContent = "Hola, " + pendiente.nombre;
   document.getElementById("datos").textContent =
-    "Usuario: " + pendiente.usuario +
-    " | Rol: " + (pendiente.rol === "admin" ? "Administrador" : "Común");
-
-  document.getElementById("zonaAdmin").hidden = pendiente.rol !== "admin";
+    "Usuario: " + pendiente.usuario + " | Rol: " + nombreRol(pendiente.rol);
 
   if (pendiente.rol === "admin") {
+    document.getElementById("zonaAdmin").hidden = false;
     dibujarLista();
+  } else {
+    document.getElementById("zonaAdmin").hidden = true;
   }
 }
 
-function dibujarLista() {
-  var lista = document.getElementById("lista");
-  lista.innerHTML = "";
+// ============================================================
+//  ADMINISTRACIÓN DE USUARIOS
+// ============================================================
 
-  usuarios.forEach(function (u) {
-    var linea = document.createElement("p");
-    linea.textContent = u.usuario + " (" + (u.rol === "admin" ? "Administrador" : "Común") + ") ";
+// Muestra la lista con un botón "Eliminar" al lado de cada usuario.
+function dibujarLista() {
+  var texto = "";
+
+  for (var i = 0; i < usuarios.length; i++) {
+    var u = usuarios[i];
+
+    texto = texto + "<p>" + u.usuario + " (" + nombreRol(u.rol) + ") ";
 
     if (u.usuario !== pendiente.usuario) {
-      var boton = document.createElement("button");
-      boton.textContent = "Eliminar";
-      boton.onclick = function () { eliminar(u.usuario); };
-      linea.appendChild(boton);
+      texto = texto + '<button onclick="eliminar(' + i + ')">Eliminar</button>';
     }
 
-    lista.appendChild(linea);
-  });
+    texto = texto + "</p>";
+  }
+
+  document.getElementById("lista").innerHTML = texto;
 }
 
+// Agrega un usuario nuevo.
 function agregar() {
   var nombre = document.getElementById("nuevoNombre").value.trim();
   var usuario = document.getElementById("nuevoUsuario").value.trim();
@@ -247,12 +288,21 @@ function agregar() {
   var r3 = document.getElementById("nuevoR3").value.trim();
   var mensaje = document.getElementById("mensaje3");
 
-  if (nombre === "" || usuario === "" || clave === "" || r1 === "" || r2 === "" || r3 === "") {
+  if (nombre === "" || usuario === "" || clave === "" ||
+      r1 === "" || r2 === "" || r3 === "") {
     mensaje.textContent = "Completá todos los campos.";
     return;
   }
 
-  if (usuarios.some(function (u) { return u.usuario === usuario; })) {
+  var existe = false;
+
+  for (var i = 0; i < usuarios.length; i++) {
+    if (usuarios[i].usuario === usuario) {
+      existe = true;
+    }
+  }
+
+  if (existe) {
     mensaje.textContent = "Ese usuario ya existe.";
     return;
   }
@@ -264,6 +314,7 @@ function agregar() {
     rol: rol,
     respuestas: [r1, r2, r3]
   });
+
   guardar();
   dibujarLista();
 
@@ -276,26 +327,30 @@ function agregar() {
   mensaje.textContent = "Usuario agregado.";
 }
 
-function eliminar(nombre) {
-  var objetivo = usuarios.find(function (u) { return u.usuario === nombre; });
-  var admins = usuarios.filter(function (u) { return u.rol === "admin"; });
-  var mensaje = document.getElementById("mensaje3");
+// Elimina el usuario que está en esa posición de la lista.
+function eliminar(posicion) {
+  var u = usuarios[posicion];
+  var admins = 0;
 
-  if (!objetivo) {
+  for (var i = 0; i < usuarios.length; i++) {
+    if (usuarios[i].rol === "admin") {
+      admins = admins + 1;
+    }
+  }
+
+  if (u.rol === "admin" && admins === 1) {
+    document.getElementById("mensaje3").textContent =
+      "No se puede eliminar al último administrador.";
     return;
   }
 
-  if (objetivo.rol === "admin" && admins.length === 1) {
-    mensaje.textContent = "No se puede eliminar al último administrador.";
-    return;
-  }
-
-  usuarios = usuarios.filter(function (u) { return u.usuario !== nombre; });
+  usuarios.splice(posicion, 1);
   guardar();
   dibujarLista();
-  mensaje.textContent = "Usuario eliminado.";
+  document.getElementById("mensaje3").textContent = "Usuario eliminado.";
 }
 
+// Vuelve a la pantalla de login.
 function salir() {
   pendiente = null;
   document.getElementById("usuario").value = "";
