@@ -92,6 +92,9 @@ y abre el navegador solo. La página se ve en el navegador, pero **toda la
 lógica está en Python**: login, 3 preguntas, roles, agregar y eliminar
 usuarios. No usa JavaScript. Los usuarios se guardan en `usuarios.json`.
 
+Es la versión **100% Python** del TP: no hay JavaScript ni lógica en el
+navegador; el navegador solo muestra el HTML que genera Python.
+
 Requiere Python 3 instalado. Para cerrar el servidor, apretar `Ctrl+C`
 en la ventana de la consola.
 
