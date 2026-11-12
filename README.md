@@ -79,6 +79,22 @@ rol **administrador** o **común**, y el administrador puede agregar y
 eliminar usuarios. Al lado del login muestra la lista de usuarios con
 su clave y sus respuestas.
 
+### Versión Python con página local
+
+Ejecutar:
+
+```
+python "phyton usuario.py"
+```
+
+El archivo levanta un servidor local con `http.server` (librería estándar)
+y abre el navegador solo. La página se ve en el navegador, pero **toda la
+lógica está en Python**: login, 3 preguntas, roles, agregar y eliminar
+usuarios. No usa JavaScript. Los usuarios se guardan en `usuarios.json`.
+
+Requiere Python 3 instalado. Para cerrar el servidor, apretar `Ctrl+C`
+en la ventana de la consola.
+
 ### Versión C# (Windows Forms)
 
 La carpeta `SistemaLogin_Demo` contiene una aplicación de escritorio
@@ -99,5 +115,6 @@ Para abrir el código, abrir `SistemaLogin_Demo/Codigo/SistemaLogin.sln`.
 login.py            → versión de terminal (Python)
 login.html          → versión web (HTML + CSS + JavaScript, todo en un archivo)
 phyton usuario.html → versión web simple (login, roles y usuarios)
+phyton usuario.py   → versión Python con página local (servidor http.server)
 SistemaLogin_Demo/  → versión de escritorio (C# / Windows Forms)
 ```

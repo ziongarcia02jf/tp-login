@@ -1,5 +1,6 @@
 # datos generados por el programa (nunca subir usuarios reales)
 usuarios.txt
+usuarios.json
 
 # python
 __pycache__/
