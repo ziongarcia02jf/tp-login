@@ -1,8 +1,8 @@
 # TP: Identificación y Autenticación
 
-Sistema de usuarios desarrollado en **tres versiones** del mismo trabajo práctico:
-una de **terminal en Python**, otra **web en JavaScript/HTML** y una
-**de escritorio en C# con Windows Forms**.
+Sistema de usuarios desarrollado en **varias versiones** del mismo trabajo
+práctico: una **web en JavaScript/HTML**, una **100% Python** que muestra la
+página en el navegador y una **de escritorio en C# con Windows Forms**.
 
 Permite tres operaciones:
 
@@ -34,13 +34,14 @@ nombre;contraseña;pregunta;confirmación;tipo
 | 3 | Respuesta/confirmación (guardada como **hash SHA-256**) |
 | 4 | Tipo de usuario (admin / comun) |
 
-- **Python:** archivo de texto `usuarios.txt`, leído con `open()` +
-  `readlines()`, agregado con modo `'a'` y reescrito con modo `'w'`.
+- **Python (`phyton usuario.py`):** los usuarios se guardan en
+  `usuarios.json`, una lista de diccionarios que se lee y se escribe con
+  `json.load` / `json.dump`.
 - **JavaScript:** el navegador no maneja archivos de texto, por eso se
   usa `localStorage`, el equivalente del navegador (la consola inferior
   de la página muestra el "archivo" en vivo).
 
-## Seguridad implementada
+## Seguridad implementada (versión web completa)
 
 | Problema | Solución |
 |----------|----------|
@@ -53,16 +54,11 @@ nombre;contraseña;pregunta;confirmación;tipo
 | Contraseñas demasiado débiles | Mínimo 6 caracteres + confirmación doble |
 | Problemas de codificación con ñ/acentos | Archivos abiertos con `encoding='utf-8'` |
 
+> La versión `phyton usuario.py` es una demo simple y didáctica: guarda las
+> contraseñas en texto plano a propósito, para que el código sea fácil de
+> estudiar.
+
 ## Cómo ejecutarlo
-
-### Versión Python (terminal)
-
-```
-python login.py
-```
-
-Requiere Python 3. No usa librerías externas (solo `hashlib`,
-`getpass`, `time` y `sys` de la librería estándar).
 
 ### Versión web
 
@@ -115,7 +111,6 @@ Para abrir el código, abrir `SistemaLogin_Demo/Codigo/SistemaLogin.sln`.
 ## Estructura
 
 ```
-login.py            → versión de terminal (Python)
 login.html          → versión web (HTML + CSS + JavaScript, todo en un archivo)
 phyton usuario.html → versión web simple (login, roles y usuarios)
 phyton usuario.py   → versión Python con página local (servidor http.server)

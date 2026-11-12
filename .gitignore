@@ -5,3 +5,6 @@ usuarios.json
 # python
 __pycache__/
 *.pyc
+
+# el manual queda solo en el escritorio, no se sube al repo
+Manual-phyton-usuario.pdf
