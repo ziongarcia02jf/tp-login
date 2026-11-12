@@ -71,6 +71,14 @@ también sin internet). Incluye medidor de fuerza de contraseña,
 bloqueo por intentos fallidos y una consola que muestra el
 "archivo" de usuarios en tiempo real.
 
+### Versión web simple
+
+Abrir `phyton usuario.html` con doble clic. Es una versión corta y fácil
+de estudiar: login con usuario y contraseña, 3 preguntas de seguridad,
+rol **administrador** o **común**, y el administrador puede agregar y
+eliminar usuarios. Al lado del login muestra la lista de usuarios con
+su clave y sus respuestas.
+
 ### Versión C# (Windows Forms)
 
 La carpeta `SistemaLogin_Demo` contiene una aplicación de escritorio
@@ -90,5 +98,6 @@ Para abrir el código, abrir `SistemaLogin_Demo/Codigo/SistemaLogin.sln`.
 ```
 login.py            → versión de terminal (Python)
 login.html          → versión web (HTML + CSS + JavaScript, todo en un archivo)
+phyton usuario.html → versión web simple (login, roles y usuarios)
 SistemaLogin_Demo/  → versión de escritorio (C# / Windows Forms)
 ```

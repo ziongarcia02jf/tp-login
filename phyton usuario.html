@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Login simple</title>
+<style>
+  body {
+    max-width: 900px;
+    margin: 40px auto;
+    padding: 0 16px;
+    font-family: Arial, sans-serif;
+    text-align: center;
+  }
+
+  #contenedor {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+    align-items: flex-start;
+    justify-content: center;
+    text-align: left;
+  }
+
+  #principal {
+    flex: 1;
+    min-width: 280px;
+    text-align: center;
+  }
+
+  #ayuda {
+    width: 300px;
+    text-align: left;
+    border-left: 1px solid #ccc;
+    padding-left: 20px;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<div id="contenedor">
+<div id="principal">
+
+<!-- ===== PANTALLA 1: USUARIO Y CONTRASEÑA ===== -->
+<div id="pantallaLogin">
+  <h2>Iniciar sesión</h2>
+  Usuario: <input id="usuario"><br><br>
+  Contraseña: <input id="clave" type="password"><br><br>
+  <button onclick="entrar()">Ingresar</button>
+  <p id="mensaje"></p>
+</div>
+
+<!-- ===== PANTALLA 2: PREGUNTAS DE SEGURIDAD ===== -->
+<div id="pantallaPreguntas" hidden>
+  <h2>Preguntas de seguridad</h2>
+  <p id="quien"></p>
+  <p>1. ¿Nombre de tu primera mascota?<br><input id="r1"></p>
+  <p>2. ¿Ciudad donde naciste?<br><input id="r2"></p>
+  <p>3. ¿Nombre de tu escuela primaria?<br><input id="r3"></p>
+  <button onclick="verificar()">Verificar e ingresar</button>
+  <p id="mensaje2"></p>
+</div>
+
+<!-- ===== PANTALLA 3: PANEL DEL USUARIO ===== -->
+<div id="pantallaPanel" hidden>
+  <h2 id="tituloPanel"></h2>
+  <p id="datos"></p>
+
+  <div id="zonaAdmin" hidden>
+    <hr>
+    <h3>Lista de usuarios</h3>
+    <div id="lista"></div>
+
+    <hr>
+    <h3>Agregar usuario</h3>
+    Nombre: <input id="nuevoNombre"><br><br>
+    Usuario: <input id="nuevoUsuario"><br><br>
+    Contraseña: <input id="nuevoClave"><br><br>
+    Rol: <select id="nuevoRol">
+      <option value="comun">Común</option>
+      <option value="admin">Administrador</option>
+    </select><br><br>
+    Respuesta 1: <input id="nuevoR1"><br><br>
+    Respuesta 2: <input id="nuevoR2"><br><br>
+    Respuesta 3: <input id="nuevoR3"><br><br>
+    <button onclick="agregar()">Agregar</button>
+    <p id="mensaje3"></p>
+  </div>
+
+  <hr>
+  <button onclick="salir()">Cerrar sesión</button>
+</div>
+
+</div><!-- /principal -->
+
+<!-- ===== AYUDA: USUARIOS Y CONTRASEÑAS ===== -->
+<div id="ayuda">
+  <h3>Usuarios del sistema</h3>
+  <div id="tablaUsuarios"></div>
+</div>
+
+</div><!-- /contenedor -->
+
+<script>
+// ============================================================
+//  LOGIN SIMPLE - Demo escolar
+//  Los usuarios se guardan en el navegador (localStorage).
+//  Cuentas de ejemplo:
+//    admin   / admin123   -> respuestas: firulais / buenos aires / san martin
+//    usuario / usuario123 -> respuestas: luna / cordoba / belgrano
+// ============================================================
+
+var memoria = null; // respaldo por si el navegador bloquea localStorage
+
+function leer() {
+  try { return localStorage.getItem("usuariosLogin"); } catch (e) { return memoria; }
+}
+
+var usuarios = JSON.parse(leer() || "null");
+
+if (!usuarios) {
+  usuarios = [
+    {
+      nombre: "Administrador",
+      usuario: "admin",
+      clave: "admin123",
+      rol: "admin",
+      respuestas: ["firulais", "buenos aires", "san martin"]
+    },
+    {
+      nombre: "Usuario común",
+      usuario: "usuario",
+      clave: "usuario123",
+      rol: "comun",
+      respuestas: ["luna", "cordoba", "belgrano"]
+    }
+  ];
+  guardar();
+}
+
+var pendiente = null; // usuario que ya escribió bien la contraseña
+
+dibujarAyuda();
+
+function guardar() {
+  var texto = JSON.stringify(usuarios);
+  try { localStorage.setItem("usuariosLogin", texto); } catch (e) { memoria = texto; }
+  dibujarAyuda();
+}
+
+function dibujarAyuda() {
+  var caja = document.getElementById("tablaUsuarios");
+  if (!caja) return;
+  caja.innerHTML = "";
+
+  usuarios.forEach(function (u) {
+    var p = document.createElement("p");
+
+    var titulo = document.createElement("b");
+    titulo.textContent = u.usuario + " (" + (u.rol === "admin" ? "Administrador" : "Común") + ")";
+    p.appendChild(titulo);
+    p.appendChild(document.createElement("br"));
+    p.appendChild(document.createTextNode("Clave: " + u.clave));
+    p.appendChild(document.createElement("br"));
+    p.appendChild(document.createTextNode("Respuestas: " + u.respuestas.join(" / ")));
+
+    caja.appendChild(p);
+  });
+}
+
+function normalizar(texto) {
+  return texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+}
+
+function entrar() {
+  var usuario = document.getElementById("usuario").value.trim();
+  var clave = document.getElementById("clave").value;
+  var encontrado = usuarios.find(function (u) { return u.usuario === usuario; });
+
+  if (!encontrado || encontrado.clave !== clave) {
+    document.getElementById("mensaje").textContent = "Usuario o contraseña incorrectos.";
+    return;
+  }
+
+  pendiente = encontrado;
+  document.getElementById("mensaje").textContent = "";
+  document.getElementById("quien").textContent = "Usuario: " + encontrado.usuario;
+  document.getElementById("pantallaLogin").hidden = true;
+  document.getElementById("pantallaPreguntas").hidden = false;
+}
+
+function verificar() {
+  var correctas = pendiente.respuestas.map(normalizar);
+
+  if (normalizar(document.getElementById("r1").value) !== correctas[0] ||
+      normalizar(document.getElementById("r2").value) !== correctas[1] ||
+      normalizar(document.getElementById("r3").value) !== correctas[2]) {
+    document.getElementById("mensaje2").textContent = "Alguna respuesta es incorrecta.";
+    return;
+  }
+
+  document.getElementById("r1").value = "";
+  document.getElementById("r2").value = "";
+  document.getElementById("r3").value = "";
+  document.getElementById("mensaje2").textContent = "";
+  document.getElementById("pantallaPreguntas").hidden = true;
+  document.getElementById("pantallaPanel").hidden = false;
+
+  document.getElementById("tituloPanel").textContent = "Hola, " + pendiente.nombre;
+  document.getElementById("datos").textContent =
+    "Usuario: " + pendiente.usuario +
+    " | Rol: " + (pendiente.rol === "admin" ? "Administrador" : "Común");
+
+  document.getElementById("zonaAdmin").hidden = pendiente.rol !== "admin";
+
+  if (pendiente.rol === "admin") {
+    dibujarLista();
+  }
+}
+
+function dibujarLista() {
+  var lista = document.getElementById("lista");
+  lista.innerHTML = "";
+
+  usuarios.forEach(function (u) {
+    var linea = document.createElement("p");
+    linea.textContent = u.usuario + " (" + (u.rol === "admin" ? "Administrador" : "Común") + ") ";
+
+    if (u.usuario !== pendiente.usuario) {
+      var boton = document.createElement("button");
+      boton.textContent = "Eliminar";
+      boton.onclick = function () { eliminar(u.usuario); };
+      linea.appendChild(boton);
+    }
+
+    lista.appendChild(linea);
+  });
+}
+
+function agregar() {
+  var nombre = document.getElementById("nuevoNombre").value.trim();
+  var usuario = document.getElementById("nuevoUsuario").value.trim();
+  var clave = document.getElementById("nuevoClave").value;
+  var rol = document.getElementById("nuevoRol").value;
+  var r1 = document.getElementById("nuevoR1").value.trim();
+  var r2 = document.getElementById("nuevoR2").value.trim();
+  var r3 = document.getElementById("nuevoR3").value.trim();
+  var mensaje = document.getElementById("mensaje3");
+
+  if (nombre === "" || usuario === "" || clave === "" || r1 === "" || r2 === "" || r3 === "") {
+    mensaje.textContent = "Completá todos los campos.";
+    return;
+  }
+
+  if (usuarios.some(function (u) { return u.usuario === usuario; })) {
+    mensaje.textContent = "Ese usuario ya existe.";
+    return;
+  }
+
+  usuarios.push({
+    nombre: nombre,
+    usuario: usuario,
+    clave: clave,
+    rol: rol,
+    respuestas: [r1, r2, r3]
+  });
+  guardar();
+  dibujarLista();
+
+  document.getElementById("nuevoNombre").value = "";
+  document.getElementById("nuevoUsuario").value = "";
+  document.getElementById("nuevoClave").value = "";
+  document.getElementById("nuevoR1").value = "";
+  document.getElementById("nuevoR2").value = "";
+  document.getElementById("nuevoR3").value = "";
+  mensaje.textContent = "Usuario agregado.";
+}
+
+function eliminar(nombre) {
+  var objetivo = usuarios.find(function (u) { return u.usuario === nombre; });
+  var admins = usuarios.filter(function (u) { return u.rol === "admin"; });
+  var mensaje = document.getElementById("mensaje3");
+
+  if (!objetivo) {
+    return;
+  }
+
+  if (objetivo.rol === "admin" && admins.length === 1) {
+    mensaje.textContent = "No se puede eliminar al último administrador.";
+    return;
+  }
+
+  usuarios = usuarios.filter(function (u) { return u.usuario !== nombre; });
+  guardar();
+  dibujarLista();
+  mensaje.textContent = "Usuario eliminado.";
+}
+
+function salir() {
+  pendiente = null;
+  document.getElementById("usuario").value = "";
+  document.getElementById("clave").value = "";
+  document.getElementById("mensaje").textContent = "";
+  document.getElementById("pantallaPanel").hidden = true;
+  document.getElementById("pantallaLogin").hidden = false;
+}
+</script>
+
+</body>
+</html>
